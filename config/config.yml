@@ -6,8 +6,13 @@ profiler:
   enable: true
   listening: 0.0.0.0:6060
 kafka:
-  brokers: "127.0.0.1:9092"
+  brokers: "127.0.0.1:9094"
   group: "km-consumer"
+  ssl:
+    enable: false
+    clientcertfile: "cert/client.cer.pem"
+    clientkeyfile: "cert/client.key.pem"
+    cacertfile: "cert/server.cer.pem"
 contacts:
 - name: "zhigang"
   email: "zhigang52110@sina.com"

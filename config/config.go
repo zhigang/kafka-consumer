@@ -21,5 +21,12 @@ type Config struct {
 	Kafka struct {
 		Brokers string `default:"127.0.0.1:9092" env:"KAFKA_BROKERS"`
 		Group   string `default:"km-default-consumer" env:"KAFKA_GROUP"`
+		SSL     SSLConfig
 	}
+}
+
+// SSLConfig for Kafka.
+type SSLConfig struct {
+	Enable                                    bool `default:"false"`
+	ClientCertFile, ClientKeyFile, CACertFile string
 }
