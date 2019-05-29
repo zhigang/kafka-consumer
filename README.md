@@ -11,7 +11,7 @@ Kafka quick start documentation at <http://kafka.apache.org/quickstart>
 ## Docker Command
 
 ```bash
-docker run -d -p 3000:3000 -e KAFKA_BROKERS="kafka:9092" --name kafka-consumer siriuszg/kafka-consumer:TAG
+docker run -d -p 3000:3000 --restart=always -e KAFKA_BROKERS="kafka:9092" --name kafka-consumer siriuszg/kafka-consumer:TAG
 ```
 
 ## Http Request
