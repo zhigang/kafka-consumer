@@ -45,8 +45,8 @@ func main() {
 	bindingAPI(e)
 
 	sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
-	initKafkaProducer()
-	defer closeProducer()
+	// initKafkaProducer()
+	// defer closeProducer()
 
 	e.Logger.Fatal(e.StartServer(s))
 }
@@ -94,7 +94,7 @@ func initEchoServer(e *echo.Echo) {
 func bindingAPI(e *echo.Echo) {
 	apiV1 := e.Group("/v1")
 	apiV1.GET("/consumer", consumer)
-	apiV1.GET("/producer", producer)
+	// apiV1.GET("/producer", producer)
 }
 
 func consumer(c echo.Context) error {
@@ -169,24 +169,25 @@ func consumer(c echo.Context) error {
 	}()
 
 	idx := 0
-	var msgs []Msg
+	c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
+	c.Response().WriteHeader(http.StatusOK)
 	for m := range consumer.Messages() {
-		var msg Msg
-		msg.Consumer = group
-		msg.Topic = m.Topic
-		msg.Partition = m.Partition
-		msg.Offset = m.Offset
-		msg.Value = string(m.Value)
-
-		if filter == "" {
-			msgs = append(msgs, msg)
-			idx++
-		} else if strings.Contains(msg.Value, filter) {
-			msgs = append(msgs, msg)
+		value := string(m.Value)
+		if filter == "" || strings.Contains(value, filter) {
+			var msg Msg
+			msg.Consumer = group
+			msg.Topic = m.Topic
+			msg.Partition = m.Partition
+			msg.Offset = m.Offset
+			msg.Value = value
+			if err := json.NewEncoder(c.Response()).Encode(msg); err != nil {
+				return err
+			}
+			c.Response().Flush()
 			idx++
 		}
 
-		c.Logger().Info(fmt.Sprintf("%s/%d/%d : %s", msg.Topic, msg.Partition, msg.Offset, msg.Value))
+		c.Logger().Info(fmt.Sprintf("%s/%d/%d : %s", m.Topic, m.Partition, m.Offset, m.Value))
 		if commit == "1" {
 			consumer.MarkOffset(m, "") //MarkOffset 并不是实时写入kafka，有可能在程序crash时丢掉未提交的offset
 		}
@@ -195,7 +196,7 @@ func consumer(c echo.Context) error {
 		}
 	}
 
-	return c.JSON(http.StatusOK, msgs)
+	return nil
 }
 
 func initKafkaProducer() {
