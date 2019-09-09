@@ -4,7 +4,7 @@ package config
 type Config struct {
 	Service struct {
 		Name    string `default:"service name"`
-		Version string `default:"1.0.0"`
+		Version string `default:"1.0.0" env:"KC_VERSION"`
 		Address string `default:":3000"`
 	}
 

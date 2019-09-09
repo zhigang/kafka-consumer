@@ -1,12 +1,12 @@
 service:
   name: "Kafka Message"
-  version: "1.0.0"
+  version: "1.1.0"
   address: ":3000"
 profiler:
   enable: true
   listening: 0.0.0.0:6060
 kafka:
-  brokers: "127.0.0.1:9094"
+  brokers: "127.0.0.1:9092"
   group: "km-consumer"
   ssl:
     enable: false

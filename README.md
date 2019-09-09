@@ -1,12 +1,10 @@
 # Kafka Consumer
 
-Api extensions for [Sarama Cluster](https://github.com/bsm/sarama-cluster), the Go client library for Apache Kafka 0.9 (and later).
+Api extensions for [Sarama](https://github.com/Shopify/sarama), the Go client library for Apache Kafka 0.9 (and later).
 
 ## More Documentation
 
-Sarama dluster documentation and example are available via godoc at <http://godoc.org/github.com/bsm/sarama-cluster>
-
-Kafka quick start documentation at <http://kafka.apache.org/quickstart>
+Kafka quick start documentation at [kafka.apache.org](http://kafka.apache.org/quickstart)
 
 ## Docker Command
 
