@@ -18,8 +18,8 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/jinzhu/configor"
-	"github.com/labstack/echo"
-	"github.com/labstack/echo/middleware"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	elog "github.com/labstack/gommon/log"
 )
 
@@ -39,8 +39,11 @@ func main() {
 	sarama.Logger = logrus.StandardLogger()
 	// sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 
-	// initKafkaProducer()
-	// defer closeProducer()
+	if globalConfig.Service.Producer {
+		logrus.Infof("Bind producer api")
+		initKafkaProducer()
+		defer closeProducer()
+	}
 
 	e := echo.New()
 	s := &http.Server{
@@ -97,7 +100,9 @@ func initEchoServer(e *echo.Echo) {
 func bindingAPI(e *echo.Echo) {
 	apiV1 := e.Group("/v1")
 	apiV1.GET("/consumer", consumer)
-	// apiV1.GET("/producer", producer)
+	if globalConfig.Service.Producer {
+		apiV1.GET("/producer", producer)
+	}
 }
 
 func consumer(c echo.Context) error {
@@ -189,7 +194,7 @@ func consumer(c echo.Context) error {
 		}
 	}()
 
-	c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
+	c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
 	c.Response().WriteHeader(http.StatusOK)
 	for m := range consumer.Messages() {
 		var msg Msg
