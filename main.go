@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"zprojects/kafka-consumer/config"
+	"zhigang/kafka-consumer/config"
 
 	"github.com/sirupsen/logrus"
 
