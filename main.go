@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"zhigang/kafka-consumer/config"
 
 	"github.com/sirupsen/logrus"
+	"github.com/zhigang/kafka-consumer/config"
 
 	"github.com/Shopify/sarama"
 	"github.com/jinzhu/configor"
