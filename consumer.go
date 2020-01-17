@@ -12,7 +12,6 @@ import (
 type Consumer struct {
 	length   int
 	filter   string
-	mark     bool
 	messages chan *sarama.ConsumerMessage
 	mutex    sync.Mutex
 }
@@ -40,10 +39,9 @@ func (consumer *Consumer) sendMessage(m *sarama.ConsumerMessage) bool {
 }
 
 // Init is fatch messages.
-func (consumer *Consumer) Init(len int, filter string, mark bool) {
+func (consumer *Consumer) Init(len int, filter string) {
 	consumer.length = len
 	consumer.filter = filter
-	consumer.mark = mark
 	consumer.messages = make(chan *sarama.ConsumerMessage)
 }
 
@@ -69,6 +67,9 @@ func (consumer *Consumer) Cleanup(s sarama.ConsumerGroupSession) error {
 		"GenerationID": s.GenerationID(),
 		"Claims":       s.Claims(),
 	}).Info("cleanup kafka consumer")
+	if consumer.length > 0 {
+		close(consumer.messages)
+	}
 	return nil
 }
 

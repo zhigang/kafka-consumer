@@ -106,6 +106,7 @@ func bindingAPI(e *echo.Echo) {
 }
 
 func consumer(c echo.Context) error {
+	start := time.Now()
 	topics := c.QueryParam("topics")
 	if topics == "" {
 		return c.JSON(http.StatusBadRequest, "'topics' is required parameter.")
@@ -144,10 +145,35 @@ func consumer(c echo.Context) error {
 
 	filter := c.QueryParam("filter")
 
+	versionStr := c.QueryParam("version")
+	version := sarama.V0_10_2_0
+	if versionStr != "" {
+		pv, err := sarama.ParseKafkaVersion(versionStr)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, err.Error)
+		}
+		supported := false
+		for _, sv := range sarama.SupportedVersions {
+			if pv == sv {
+				supported = true
+				break
+			}
+		}
+		if !supported {
+			return c.JSON(http.StatusBadRequest, "'version' is not supported in sarama")
+		}
+		version = pv
+	}
+
+	logrus.Infof("sarama use kafka version: %s", version.String())
+
 	config := sarama.NewConfig()
-	config.Version = sarama.V0_11_0_0
+	config.Version = version
 	config.Consumer.Return.Errors = true
-	config.Consumer.Offsets.CommitInterval = 1 * time.Second
+	if mark {
+		config.Consumer.Offsets.AutoCommit.Enable = true
+		config.Consumer.Offsets.AutoCommit.Interval = 1 * time.Second
+	}
 
 	// 是否启用SSL
 	if globalConfig.Kafka.SSL.Enable {
@@ -165,37 +191,51 @@ func consumer(c echo.Context) error {
 		config.Consumer.Offsets.Initial = sarama.OffsetNewest
 	}
 
-	var consumerGroup sarama.ConsumerGroup
-	consumerGroup, err = sarama.NewConsumerGroup(strings.Split(globalConfig.Kafka.Brokers, ","), group, config)
+	client, err := sarama.NewConsumerGroup(strings.Split(globalConfig.Kafka.Brokers, ","), group, config)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("Unable to connect to kafka brokers (consumer). %v", err))
 	}
 
-	defer func() {
-		if err = consumerGroup.Close(); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func(cancel context.CancelFunc) {
+		cancel()
+		if err = client.Close(); err != nil {
 			logrus.Errorf("Error closing client: %v", err)
 		}
-	}()
+	}(cancel)
+
+	go func(ctx context.Context, cancel context.CancelFunc) {
+		for {
+			select {
+			case <-ctx.Done():
+				// logrus.Warn("request done")
+				cancel()
+				return
+			default:
+				// Continue handling the request
+			}
+		}
+	}(c.Request().Context(), cancel)
 
 	consumer := Consumer{}
-	consumer.Init(count, filter, mark)
-	// ctx, cancel := context.WithCancel(context.Background())
+	consumer.Init(count, filter)
+
 	go func() {
 		for {
-			if err := consumerGroup.Consume(context.Background(), strings.Split(topics, ","), &consumer); err != nil {
+			if err := client.Consume(ctx, strings.Split(topics, ","), &consumer); err != nil {
 				logrus.Errorf("Error from consumer: %v", err)
-				return
 			}
 			// check if context was cancelled, signaling that the consumer should stop
-			// if ctx.Err() != nil {
-			// 	logrus.Errorf("Error from context: %v", ctx.Err())
-			// 	return
-			// }
+			if ctx.Err() != nil {
+				// logrus.Errorf("Error from context: %v", ctx.Err())
+				return
+			}
 		}
 	}()
 
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
 	c.Response().WriteHeader(http.StatusOK)
+	enc := json.NewEncoder(c.Response())
 	for m := range consumer.Messages() {
 		var msg Msg
 		msg.Consumer = group
@@ -203,7 +243,7 @@ func consumer(c echo.Context) error {
 		msg.Partition = m.Partition
 		msg.Offset = m.Offset
 		msg.Value = string(m.Value)
-		if err := json.NewEncoder(c.Response()).Encode(msg); err != nil {
+		if err := enc.Encode(msg); err != nil {
 			return err
 		}
 		c.Response().Flush()
@@ -211,8 +251,8 @@ func consumer(c echo.Context) error {
 		logrus.Infof("%s/%d/%d : %s", m.Topic, m.Partition, m.Offset, m.Value)
 
 	}
-	// cancel()
-	return json.NewEncoder(c.Response()).Encode(fmt.Sprintf("successful read messages count: %d", count))
+
+	return json.NewEncoder(c.Response()).Encode(fmt.Sprintf("successful read messages count: %d, elapsed: %s, sarama use kafka version: %s", count, time.Since(start).String(), config.Version.String()))
 }
 
 func initKafkaProducer() {
@@ -228,7 +268,7 @@ func initKafkaProducer() {
 	config.Producer.Return.Errors = true
 	//设置使用的kafka版本,如果低于V0_10_0_0版本,消息中的timestrap没有作用.需要消费和生产同时配置
 	//注意，版本设置不对的话，kafka会返回很奇怪的错误，并且无法成功发送消息
-	// config.Version = sarama.V1_0_0_0
+	config.Version = sarama.V2_3_0_0
 	// 是否启用SSL
 	if globalConfig.Kafka.SSL.Enable {
 		tlsConfig, err := newTLSConfig("cert/client.cer.pem", "cert/client.key.pem", "cert/server.cer.pem")
@@ -288,7 +328,7 @@ func closeProducer() {
 }
 
 func producer(c echo.Context) error {
-
+	start := time.Now()
 	countStr := c.QueryParam("count")
 	if countStr == "" {
 		return c.JSON(http.StatusBadRequest, "'count' is required parameter. Type is 'int'.")
@@ -305,8 +345,7 @@ func producer(c echo.Context) error {
 	}
 
 	for i := 0; i < cnt; i++ {
-		time.Sleep(50 * time.Millisecond)
-
+		// time.Sleep(50 * time.Millisecond)
 		log := &Test{Level: "INFO", Log: "this is a auto message " + strconv.Itoa(i) + " at " + time.Now().Format("2006-01-02 15:04:05")}
 		body, _ := json.Marshal(log)
 		// 发送的消息,主题。
@@ -321,10 +360,9 @@ func producer(c echo.Context) error {
 		} else {
 			c.Logger().Info("asyncProducer is nil.")
 		}
-
 	}
 
-	return c.JSON(http.StatusOK, "ok")
+	return c.JSON(http.StatusOK, fmt.Sprintf("successful send messages count: %d, elapsed: %s", cnt, time.Since(start).String()))
 }
 
 func newTLSConfig(clientCertFile, clientKeyFile, caCertFile string) (*tls.Config, error) {

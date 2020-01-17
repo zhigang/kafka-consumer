@@ -55,3 +55,6 @@ curl 'http://localhost:3000/v1/consumer?topics=test&initial=new&count=10'
   * type: string
   * value: '1' or '0'
   * set '1' is kafka consumer mark offset
+* version
+  * type: string
+  * kafka version
