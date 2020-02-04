@@ -6,7 +6,7 @@ type Config struct {
 		Name     string `default:"service name"`
 		Version  string `default:"1.0.0" env:"KC_VERSION"`
 		Address  string `default:":3000"`
-		Producer bool   `default:":false" env:"ENABLE_PRODUCER"`
+		Producer bool   `default:"false" env:"ENABLE_PRODUCER"`
 	}
 
 	Profiler struct {
