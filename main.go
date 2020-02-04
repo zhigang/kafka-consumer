@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	globalConfig  config.Config
+	globalConfig  *config.Config
 	asyncProducer sarama.AsyncProducer
 	startedAt     time.Time
 )
@@ -59,7 +59,8 @@ func main() {
 }
 
 func loadConfig() {
-	configor.Load(&globalConfig, "config/config.yml")
+	globalConfig = &config.Config{}
+	configor.Load(globalConfig, "config/config.yml")
 	logrus.Infof("Use config: %+v", globalConfig)
 }
 
