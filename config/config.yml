@@ -1,11 +1,13 @@
 service:
   name: "Kafka Message"
-  version: "1.1.0"
+  version: "1.2.1"
   address: ":3000"
-  producer: false
 profiler:
   enable: true
   listening: 0.0.0.0:6060
+producer:
+  enable: false
+  version: "2.3.0"
 kafka:
   brokers: "127.0.0.1:9092"
   group: "km-consumer"

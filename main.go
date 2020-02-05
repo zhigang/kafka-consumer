@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -39,7 +40,7 @@ func main() {
 	sarama.Logger = logrus.StandardLogger()
 	// sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 
-	if globalConfig.Service.Producer {
+	if globalConfig.Producer.Enable {
 		logrus.Infof("Bind producer api")
 		initKafkaProducer()
 		defer closeProducer()
@@ -101,7 +102,7 @@ func initEchoServer(e *echo.Echo) {
 func bindingAPI(e *echo.Echo) {
 	apiV1 := e.Group("/v1")
 	apiV1.GET("/consumer", consumer)
-	if globalConfig.Service.Producer {
+	if globalConfig.Producer.Enable {
 		apiV1.GET("/producer", producer)
 	}
 }
@@ -149,19 +150,9 @@ func consumer(c echo.Context) error {
 	versionStr := c.QueryParam("version")
 	version := sarama.V0_10_2_0
 	if versionStr != "" {
-		pv, err := sarama.ParseKafkaVersion(versionStr)
+		pv, err := getKafkaVersion(versionStr)
 		if err != nil {
 			return c.JSON(http.StatusBadRequest, err.Error)
-		}
-		supported := false
-		for _, sv := range sarama.SupportedVersions {
-			if pv == sv {
-				supported = true
-				break
-			}
-		}
-		if !supported {
-			return c.JSON(http.StatusBadRequest, "'version' is not supported in sarama")
 		}
 		version = pv
 	}
@@ -267,9 +258,14 @@ func initKafkaProducer() {
 	//是否等待成功和失败后的响应,只有上面的RequireAcks设置不是NoReponse这里才有用.
 	config.Producer.Return.Successes = true
 	config.Producer.Return.Errors = true
+
+	v, err := getKafkaVersion(globalConfig.Producer.Version)
+	if err != nil {
+		logrus.Errorf("producer use default version 0.10.2, get version error: %v", err)
+	}
 	//设置使用的kafka版本,如果低于V0_10_0_0版本,消息中的timestrap没有作用.需要消费和生产同时配置
 	//注意，版本设置不对的话，kafka会返回很奇怪的错误，并且无法成功发送消息
-	config.Version = sarama.V2_3_0_0
+	config.Version = v
 	// 是否启用SSL
 	if globalConfig.Kafka.SSL.Enable {
 		tlsConfig, err := newTLSConfig("cert/client.cer.pem", "cert/client.key.pem", "cert/server.cer.pem")
@@ -280,7 +276,6 @@ func initKafkaProducer() {
 		config.Net.TLS.Config = tlsConfig
 	}
 
-	var err error
 	asyncProducer, err = sarama.NewAsyncProducer(strings.Split(globalConfig.Kafka.Brokers, ","), config)
 	if err != nil {
 		logrus.Errorf("Unable to connect to kafka brokers (producer). %v", err)
@@ -293,26 +288,6 @@ func initKafkaProducer() {
 			select {
 			case s := <-p.Successes():
 				if s != nil {
-					// 格式：\033[显示方式;前景色;背景色m
-					// 说明：
-					// 前景色            背景色           颜色
-					// ---------------------------------------
-					// 30                40              黑色
-					// 31                41              红色
-					// 32                42              绿色
-					// 33                43              黃色
-					// 34                44              蓝色
-					// 35                45              紫红色
-					// 36                46              青蓝色
-					// 37                47              白色
-					// 显示方式           意义
-					// -------------------------
-					// 0                终端默认设置
-					// 1                高亮显示
-					// 4                使用下划线
-					// 5                闪烁
-					// 7                反白显示
-					// 8                不可见
 					logrus.Infof("send message \x1b[1;32m%s\x1b[0m topic: %s, partitions: %d, offset: %d, metadata: %v", "succeeded", s.Topic, s.Partition, s.Offset, s.Metadata)
 				}
 			case fail := <-p.Errors():
@@ -388,4 +363,22 @@ func newTLSConfig(clientCertFile, clientKeyFile, caCertFile string) (*tls.Config
 
 	tlsConfig.BuildNameToCertificate()
 	return &tlsConfig, err
+}
+
+func getKafkaVersion(v string) (sarama.KafkaVersion, error) {
+	pv, err := sarama.ParseKafkaVersion(v)
+	if err != nil {
+		return sarama.V0_10_2_0, err
+	}
+	supported := false
+	for _, sv := range sarama.SupportedVersions {
+		if pv == sv {
+			supported = true
+			break
+		}
+	}
+	if !supported {
+		return sarama.V0_10_2_0, errors.New("'version' is not supported in sarama")
+	}
+	return pv, nil
 }

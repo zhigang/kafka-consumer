@@ -3,10 +3,14 @@ package config
 // Config for Application.
 type Config struct {
 	Service struct {
-		Name     string `default:"service name"`
-		Version  string `default:"1.0.0" env:"KC_VERSION"`
-		Address  string `default:":3000"`
-		Producer bool   `default:"false" env:"ENABLE_PRODUCER"`
+		Name    string `default:"service name"`
+		Version string `default:"1.0.0" env:"KC_VERSION"`
+		Address string `default:":3000"`
+	}
+
+	Producer struct {
+		Enable  bool   `default:"false" env:"PRODUCER_ENABLE"`
+		Version string `default:"1.0.0" env:"PRODUCER_VERSION"`
 	}
 
 	Profiler struct {
