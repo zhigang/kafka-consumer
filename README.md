@@ -62,8 +62,8 @@ curl 'http://localhost:3000/v1/consumer?topics=test&initial=new&count=10'
 ## Console Color
 
 * 格式：
-  * \033[显示方式;前景色;背景色m
-  * \x1b[显示方式;前景色%s\x1b[0m
+  * `\033[显示方式;前景色;背景色m`
+  * `\x1b[显示方式;前景色%s\x1b[0m`
 * 说明：
 
     |前景色|背景色|颜色|
