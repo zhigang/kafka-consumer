@@ -10,10 +10,11 @@ import (
 
 // Consumer represents a Sarama consumer group consumer
 type Consumer struct {
-	length   int
-	filter   string
-	messages chan *sarama.ConsumerMessage
-	mutex    sync.Mutex
+	length    int
+	filter    string
+	messages  chan *sarama.ConsumerMessage
+	mutex     sync.Mutex
+	onceClose sync.Once
 }
 
 func (consumer *Consumer) sendMessage(m *sarama.ConsumerMessage) bool {
@@ -32,10 +33,16 @@ func (consumer *Consumer) sendMessage(m *sarama.ConsumerMessage) bool {
 	}
 
 	if consumer.length == 0 {
-		close(consumer.messages)
+		consumer.closeMessage()
 	}
 
 	return true
+}
+
+func (consumer *Consumer) closeMessage() {
+	consumer.onceClose.Do(func() {
+		close(consumer.messages)
+	})
 }
 
 // Init is fatch messages.
@@ -67,9 +74,7 @@ func (consumer *Consumer) Cleanup(s sarama.ConsumerGroupSession) error {
 		"GenerationID": s.GenerationID(),
 		"Claims":       s.Claims(),
 	}).Info("cleanup kafka consumer")
-	if consumer.length > 0 {
-		close(consumer.messages)
-	}
+	consumer.closeMessage()
 	return nil
 }
 
