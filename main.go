@@ -40,7 +40,7 @@ func main() {
 	sarama.Logger = logrus.StandardLogger()
 	// sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 
-	if globalConfig.Producer.Enable {
+	if globalConfig.Kafka.Producer {
 		logrus.Infof("Bind producer api")
 		initKafkaProducer()
 		defer closeProducer()
@@ -102,7 +102,7 @@ func initEchoServer(e *echo.Echo) {
 func bindingAPI(e *echo.Echo) {
 	apiV1 := e.Group("/v1")
 	apiV1.GET("/consumer", consumer)
-	if globalConfig.Producer.Enable {
+	if globalConfig.Kafka.Producer {
 		apiV1.GET("/producer", producer)
 	}
 }
@@ -147,20 +147,12 @@ func consumer(c echo.Context) error {
 
 	filter := c.QueryParam("filter")
 
-	versionStr := c.QueryParam("version")
-	version := sarama.V0_10_2_0
-	if versionStr != "" {
-		pv, err := getKafkaVersion(versionStr)
-		if err != nil {
-			return c.JSON(http.StatusBadRequest, err.Error)
-		}
-		version = pv
-	}
-
-	logrus.Infof("sarama use kafka version: %s", version.String())
-
 	config := sarama.NewConfig()
-	config.Version = version
+	v, err := getKafkaVersion(globalConfig.Kafka.Version)
+	if err != nil {
+		logrus.Errorf("consumer use default version 0.10.2, get version error: %v", err)
+	}
+	config.Version = v
 	config.Consumer.Return.Errors = true
 	if mark {
 		config.Consumer.Offsets.AutoCommit.Enable = true
@@ -228,7 +220,9 @@ func consumer(c echo.Context) error {
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSONCharsetUTF8)
 	c.Response().WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(c.Response())
+	readCnt := 0
 	for m := range consumer.Messages() {
+		readCnt++
 		var msg Msg
 		msg.Consumer = group
 		msg.Topic = m.Topic
@@ -244,7 +238,7 @@ func consumer(c echo.Context) error {
 
 	}
 
-	return json.NewEncoder(c.Response()).Encode(fmt.Sprintf("successful read messages count: %d, elapsed: %s, sarama use kafka version: %s", count, time.Since(start).String(), config.Version.String()))
+	return json.NewEncoder(c.Response()).Encode(fmt.Sprintf("successful read messages count: %d, elapsed: %s, sarama use kafka version: %s", readCnt, time.Since(start).String(), config.Version.String()))
 }
 
 func initKafkaProducer() {
@@ -259,7 +253,7 @@ func initKafkaProducer() {
 	config.Producer.Return.Successes = true
 	config.Producer.Return.Errors = true
 
-	v, err := getKafkaVersion(globalConfig.Producer.Version)
+	v, err := getKafkaVersion(globalConfig.Kafka.Version)
 	if err != nil {
 		logrus.Errorf("producer use default version 0.10.2, get version error: %v", err)
 	}

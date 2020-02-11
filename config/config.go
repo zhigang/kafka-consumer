@@ -8,11 +8,6 @@ type Config struct {
 		Address string `default:":3000"`
 	}
 
-	Producer struct {
-		Enable  bool   `default:"false" env:"PRODUCER_ENABLE"`
-		Version string `default:"1.0.0" env:"PRODUCER_VERSION"`
-	}
-
 	Profiler struct {
 		Enable    bool   `default:"false"`
 		Listening string `default:"0.0.0.0:6060"`
@@ -24,9 +19,11 @@ type Config struct {
 	}
 
 	Kafka struct {
-		Brokers string `default:"127.0.0.1:9092" env:"KAFKA_BROKERS"`
-		Group   string `default:"km-default-consumer" env:"KAFKA_GROUP"`
-		SSL     SSLConfig
+		Brokers  string `required:"true" default:"127.0.0.1:9092" env:"KAFKA_BROKERS"`
+		Group    string `default:"km-default-consumer" env:"KAFKA_GROUP"`
+		Version  string `default:"0.10.2" env:"KAFKA_VERSION"`
+		Producer bool   `default:"false" env:"PRODUCER"`
+		SSL      SSLConfig
 	}
 }
 

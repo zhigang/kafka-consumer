@@ -5,12 +5,11 @@ service:
 profiler:
   enable: true
   listening: 0.0.0.0:6060
-producer:
-  enable: false
-  version: "2.3.0"
 kafka:
   brokers: "127.0.0.1:9092"
+  version: "2.3.0"
   group: "km-consumer"
+  producer: false
   ssl:
     enable: false
     clientcertfile: "cert/client.cer.pem"
