@@ -33,6 +33,8 @@ var (
 func main() {
 	startedAt = time.Now()
 
+	// export GODEBUG="x509ignoreCN=0"
+
 	loadConfig()
 	useProfiler()
 
@@ -161,7 +163,7 @@ func consumer(c echo.Context) error {
 
 	// 是否启用SSL
 	if globalConfig.Kafka.SSL.Enable {
-		tlsConfig, err := newTLSConfig("cert/client.cer.pem", "cert/client.key.pem", "cert/server.cer.pem")
+		tlsConfig, err := newTLSConfig(globalConfig.Kafka.SSL.ClientCertFile, globalConfig.Kafka.SSL.ClientKeyFile, globalConfig.Kafka.SSL.CACertFile)
 		if err != nil {
 			logrus.Errorf("Unable new TLS config. %v", err)
 		}
@@ -190,14 +192,10 @@ func consumer(c echo.Context) error {
 
 	go func(ctx context.Context, cancel context.CancelFunc) {
 		for {
-			select {
-			case <-ctx.Done():
-				// logrus.Warn("request done")
-				cancel()
-				return
-			default:
-				// Continue handling the request
-			}
+			<-ctx.Done()
+			// logrus.Warn("request done")
+			cancel()
+			return
 		}
 	}(c.Request().Context(), cancel)
 
@@ -262,7 +260,7 @@ func initKafkaProducer() {
 	config.Version = v
 	// 是否启用SSL
 	if globalConfig.Kafka.SSL.Enable {
-		tlsConfig, err := newTLSConfig("cert/client.cer.pem", "cert/client.key.pem", "cert/server.cer.pem")
+		tlsConfig, err := newTLSConfig(globalConfig.Kafka.SSL.ClientCertFile, globalConfig.Kafka.SSL.ClientKeyFile, globalConfig.Kafka.SSL.CACertFile)
 		if err != nil {
 			logrus.Errorf("Unable new TLS config. %v", err)
 		}
@@ -336,27 +334,25 @@ func producer(c echo.Context) error {
 }
 
 func newTLSConfig(clientCertFile, clientKeyFile, caCertFile string) (*tls.Config, error) {
-	tlsConfig := tls.Config{}
 	// Load client cert
 	cert, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile)
 	if err != nil {
-		return &tlsConfig, err
+		return nil, err
 	}
-
-	tlsConfig.Certificates = []tls.Certificate{cert}
-
 	// Load CA cert
 	caCert, err := ioutil.ReadFile(caCertFile)
 	if err != nil {
-		return &tlsConfig, err
+		return nil, err
 	}
-
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(caCert)
-	tlsConfig.RootCAs = caCertPool
 
-	tlsConfig.BuildNameToCertificate()
-	return &tlsConfig, err
+	tlsConfig := tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      caCertPool,
+	}
+
+	return &tlsConfig, nil
 }
 
 func getKafkaVersion(v string) (sarama.KafkaVersion, error) {
